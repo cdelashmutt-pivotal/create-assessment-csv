@@ -1,0 +1,22 @@
+---
+applications:
+  - name: repo-assessment-csv
+    memory: 256M
+    instances: 1
+    buildpacks:
+      - python_buildpack
+    command: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    env:
+      # SECRET_KEY is optional. If not set, a random key is generated at startup.
+      # The app has instances: 1, so this is safe. If you ever scale beyond 1
+      # instance, set a fixed key with:
+      #   cf set-env repo-assessment-csv SECRET_KEY $(python -c "import secrets; print(secrets.token_hex(32))")
+
+      # CSV default values — applied to every row unless overridden in the UI.
+      # Override at any time with:  cf set-env repo-assessment-csv DEFAULT_COST Medium
+      DEFAULT_BUSINESS_CRITICALITY: High
+      DEFAULT_TECHNICAL_OWNER: Sandeep
+      DEFAULT_BUSINESS_OWNER: ""
+      DEFAULT_COST: High
+      DEFAULT_PROGRAM: ""
+      DEFAULT_INVESTMENT_STATUS: ""

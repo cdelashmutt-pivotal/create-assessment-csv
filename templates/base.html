@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Assessment CSV{% endblock %} — Repository Assessment CSV Generator</title>
+  <link rel="stylesheet" href="https://unpkg.com/@cds/core@6/global.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Clarity City", "Avenir Next", Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      background: #f4f4f4;
+      color: #21333b;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    .app-header {
+      background: #1b2a32;
+      color: #fff;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      flex-shrink: 0;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: #fff;
+    }
+    .brand-icon {
+      width: 30px;
+      height: 30px;
+      flex-shrink: 0;
+    }
+    .brand-title {
+      font-size: 16px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+    }
+
+    /* ---- Main content ---- */
+    .main-content {
+      flex: 1;
+      max-width: 920px;
+      width: 100%;
+      margin: 32px auto;
+      padding: 0 16px;
+    }
+
+    /* ---- Step indicator ---- */
+    .step-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #49595e;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .step {
+      padding: 3px 12px;
+      border-radius: 12px;
+      background: #dce3e8;
+      color: #49595e;
+      font-weight: 500;
+    }
+    .step.active {
+      background: #0072a3;
+      color: #fff;
+    }
+    .step-sep { color: #b2c0c8; font-size: 14px; }
+
+    /* ---- Card ---- */
+    .card {
+      background: #fff;
+      border: 1px solid #cdd3d8;
+      border-radius: 3px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e8ecef;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #21333b;
+      margin: 0;
+    }
+
+    /* ---- Form ---- */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .form-group { margin-bottom: 4px; }
+    .field-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #49595e;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    input[type="text"],
+    input[type="password"],
+    input[type="email"] {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid #b2c0c8;
+      border-radius: 3px;
+      font-size: 13px;
+      color: #21333b;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input[type="text"]:focus,
+    input[type="password"]:focus,
+    input[type="email"]:focus {
+      border-color: #0072a3;
+      box-shadow: 0 0 0 2px rgba(0, 114, 163, 0.2);
+    }
+    .helper-text {
+      font-size: 11px;
+      color: #49595e;
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+    .helper-text a { color: #0072a3; }
+
+    /* ---- Buttons ---- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: 3px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+      text-decoration: none;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .btn-primary { background: #0072a3; color: #fff; border-color: #0072a3; }
+    .btn-primary:hover { background: #005d87; border-color: #005d87; }
+    .btn-outline { background: transparent; color: #0072a3; border-color: #0072a3; }
+    .btn-outline:hover { background: #e6f2f8; }
+    .btn-success { background: #318700; color: #fff; border-color: #318700; }
+    .btn-success:hover { background: #246500; border-color: #246500; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* ---- Alerts ---- */
+    .alert {
+      padding: 10px 14px;
+      border-radius: 3px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      border-left: 4px solid transparent;
+    }
+    .alert-danger  { background: #fdecea; border-color: #c92100; color: #891500; }
+    .alert-warning { background: #fff8e1; border-color: #fac400; color: #7c5800; }
+    .alert-info    { background: #e6f2f8; border-color: #0072a3; color: #004a70; }
+    .alert-success { background: #e8f5e9; border-color: #318700; color: #1d5200; }
+
+    /* ---- Badges ---- */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #e8ecef;
+      color: #49595e;
+      margin-left: 6px;
+    }
+    .badge-blue { background: #d1eaf5; color: #004a70; }
+
+    /* ---- Divider ---- */
+    hr.divider { border: none; border-top: 1px solid #e8ecef; margin: 16px 0; }
+
+    /* ---- Utilities ---- */
+    .d-flex     { display: flex; }
+    .flex-wrap  { flex-wrap: wrap; }
+    .align-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .gap-8  { gap: 8px; }
+    .gap-12 { gap: 12px; }
+    .text-muted { color: #49595e; font-size: 12px; }
+    .fw-600 { font-weight: 600; }
+
+    /* ---- Collapsible section (<details>) ---- */
+    details { margin-bottom: 16px; }
+    details > summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      padding: 6px 0;
+    }
+    details > summary::-webkit-details-marker { display: none; }
+    .summary-arrow {
+      display: inline-block;
+      font-size: 10px;
+      color: #49595e;
+      transition: transform 0.2s;
+      width: 12px;
+    }
+    details[open] > summary .summary-arrow { transform: rotate(90deg); }
+
+    /* ---- Loading overlay ---- */
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 9999;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: #fff;
+      font-size: 15px;
+    }
+    .loading-overlay.visible { display: flex; }
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---- Footer ---- */
+    .app-footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #49595e;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- App header -->
+  <header class="app-header">
+    <a class="brand" href="/">
+      <!-- VMware/Tanzu-inspired icon -->
+      <svg class="brand-icon" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="15" cy="15" r="14" fill="#1b2a32" stroke="#49afd9" stroke-width="1.5"/>
+        <path d="M8 11 L15 20 L22 11" stroke="#49afd9" stroke-width="2.5" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="15" cy="8" r="2.5" fill="#49afd9"/>
+      </svg>
+      <span class="brand-title">Repository Assessment CSV Generator</span>
+    </a>
+  </header>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <span id="loadingMessage">Connecting to Bitbucket API…</span>
+  </div>
+
+  <!-- Page content -->
+  <main class="main-content">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+
+  </main>
+
+  <footer class="app-footer">
+    Repository Assessment CSV Generator &mdash; Bitbucket Cloud
+  </footer>
+
+  <!-- Loading overlay trigger -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('form[data-loading]').forEach(function (form) {
+        form.addEventListener('submit', function () {
+          document.getElementById('loadingMessage').textContent =
+            form.dataset.loading || 'Loading\u2026';
+          document.getElementById('loadingOverlay').classList.add('visible');
+        });
+      });
+    });
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

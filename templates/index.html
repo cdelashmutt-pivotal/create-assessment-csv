@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Connect{% endblock %}
+
+{% block content %}
+
+<div class="step-indicator">
+  <span class="step active">1 &middot; Connect</span>
+  <span class="step-sep">›</span>
+  <span class="step">2 &middot; Workspaces</span>
+  <span class="step-sep">›</span>
+  <span class="step">3 &middot; Repositories</span>
+  <span class="step-sep">›</span>
+  <span class="step">4 &middot; Download</span>
+</div>
+
+<form method="POST" action="/workspaces" data-loading="Fetching workspaces from Bitbucket…">
+
+  <!-- Credentials card -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Bitbucket Credentials</h2>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="field-label" for="username">Username</label>
+        <input type="text" id="username" name="username" placeholder="jdoe" required autofocus />
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="password">API Token</label>
+        <input type="password" id="password" name="password" required />
+        <p class="helper-text">
+          Click your profile picture &rarr; <strong>Security</strong> &rarr;
+          <strong>Create API Token with Scopes</strong> for the
+          <strong>BitBucket</strong> app.<br />
+          Required scopes: <code>read:account</code>,
+          <code>read:workspace:bitbucket</code>,
+          <code>read:project:bitbucket</code>,
+          <code>read:repository:bitbucket</code>.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CSV defaults (collapsible) -->
+  <details id="defaultsSection">
+    <summary>
+      <span class="summary-arrow">&#9658;</span>
+      <span class="fw-600">CSV Default Values</span>
+      <span class="text-muted" style="margin-left:6px;">
+        Click to expand and customise per-run defaults
+      </span>
+    </summary>
+
+    <div class="card" style="margin-top:8px;">
+      <p class="text-muted" style="margin:0 0 16px;">
+        These values are applied to every row. You can override them individually
+        after downloading the CSV.
+      </p>
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label class="field-label" for="business_criticality">Business Criticality</label>
+          <input type="text" id="business_criticality" name="business_criticality"
+                 value="{{ defaults.business_criticality }}"
+                 placeholder="e.g. Critical, High, Medium, Low" />
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="technical_owner">Business App Technical Owner</label>
+          <input type="text" id="technical_owner" name="technical_owner"
+                 value="{{ defaults.technical_owner }}"
+                 placeholder="Name or email address" />
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="business_owner">Business App Business Owner</label>
+          <input type="text" id="business_owner" name="business_owner"
+                 value="{{ defaults.business_owner }}"
+                 placeholder="Name or email address (optional)" />
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="cost">Cost</label>
+          <input type="text" id="cost" name="cost"
+                 value="{{ defaults.cost }}"
+                 placeholder="e.g. High, Medium, Low" />
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="program">Program</label>
+          <input type="text" id="program" name="program"
+                 value="{{ defaults.program }}"
+                 placeholder="Optional grouping / filter category" />
+        </div>
+
+        <div class="form-group">
+          <label class="field-label" for="investment_status">Investment Status</label>
+          <input type="text" id="investment_status" name="investment_status"
+                 value="{{ defaults.investment_status }}"
+                 placeholder="e.g. Strategic, Sustain, Retire" />
+        </div>
+
+      </div>
+    </div>
+  </details>
+
+  <div style="margin-top:8px;">
+    <button type="submit" class="btn btn-primary">
+      Connect &amp; Fetch Workspaces &rarr;
+    </button>
+  </div>
+
+</form>
+
+{% endblock %}

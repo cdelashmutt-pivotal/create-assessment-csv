@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}Select Repositories{% endblock %}
+
+{% block content %}
+
+<div class="step-indicator">
+  <span class="step">1 &middot; Connect</span>
+  <span class="step-sep">›</span>
+  <span class="step">2 &middot; Workspaces</span>
+  <span class="step-sep">›</span>
+  <span class="step active">3 &middot; Repositories</span>
+  <span class="step-sep">›</span>
+  <span class="step">4 &middot; Download</span>
+</div>
+
+<form method="POST" action="/download">
+
+  <!-- Sticky toolbar -->
+  <div class="card" style="position:sticky; top:0; z-index:100; padding:12px 20px; margin-bottom:16px;">
+    <div class="d-flex align-center justify-between flex-wrap gap-8">
+      <span style="font-size:14px;">
+        <strong id="selCount">{{ total }}</strong>
+        <span class="text-muted">/ {{ total }} repositories selected</span>
+      </span>
+      <div class="d-flex gap-8 flex-wrap">
+        <button type="button" class="btn btn-outline btn-sm" onclick="toggleAll(true)">Select All</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="toggleAll(false)">Select None</button>
+        <button type="submit" class="btn btn-success">
+          &darr; Download CSV (<span id="selCountBtn">{{ total }}</span>)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workspace → Project → Repo tree -->
+  {% for ws_slug, projects in tree.items() %}
+  <div class="card" style="padding:0; overflow:hidden; margin-bottom:16px;">
+
+    <!-- Workspace header -->
+    <div style="background:#e8ecef; padding:12px 20px; display:flex; align-items:center;
+                gap:10px; border-bottom:1px solid #cdd3d8;">
+      <input
+        type="checkbox"
+        class="ws-toggle"
+        data-ws="{{ ws_slug }}"
+        checked
+        title="Toggle all repos in this workspace"
+        style="width:16px; height:16px; cursor:pointer; accent-color:#0072a3; flex-shrink:0;"
+        onchange="toggleWorkspace('{{ ws_slug }}', this.checked)"
+      />
+      <span class="fw-600" style="font-size:15px;">
+        {{ workspace_names.get(ws_slug, ws_slug) }}
+      </span>
+      <span class="badge">
+        {%- set ns = namespace(n=0) -%}
+        {%- for p in projects.values() -%}{%- set ns.n = ns.n + p.repos|length -%}{%- endfor -%}
+        {{ ns.n }} repo{{ 's' if ns.n != 1 else '' }}
+      </span>
+    </div>
+
+    <!-- Projects -->
+    <div style="padding:0 20px 12px;">
+      {% for proj_name, proj_data in projects.items() %}
+
+      <details open style="margin-top:12px; border-bottom:1px solid #f0f3f5; padding-bottom:8px;">
+        <summary style="display:flex; align-items:center; gap:10px; padding:6px 0;
+                        cursor:pointer; user-select:none; list-style:none;">
+          <span class="summary-arrow" style="font-size:10px; color:#49595e; transition:transform 0.2s;">&#9658;</span>
+          <input
+            type="checkbox"
+            class="proj-toggle"
+            data-ws="{{ ws_slug }}"
+            data-proj="{{ proj_data.key }}"
+            checked
+            title="Toggle all repos in this project"
+            style="width:15px; height:15px; cursor:pointer; accent-color:#0072a3; flex-shrink:0;"
+            onclick="event.stopPropagation(); toggleProject('{{ ws_slug }}', '{{ proj_data.key }}', this.checked)"
+          />
+          <span class="fw-600">{{ proj_name }}</span>
+          <span class="badge badge-blue">{{ proj_data.repos | length }}</span>
+        </summary>
+
+        <!-- Repos -->
+        <div style="padding-left:40px;">
+          {% for repo in proj_data.repos %}
+          <div style="display:flex; align-items:center; gap:10px; padding:5px 0;
+                      border-bottom:1px solid #f5f7f8;">
+            <input
+              type="checkbox"
+              class="repo-cb"
+              name="selected"
+              value="{{ repo.index }}"
+              data-ws="{{ ws_slug }}"
+              data-proj="{{ proj_data.key }}"
+              checked
+              style="width:14px; height:14px; cursor:pointer; accent-color:#0072a3; flex-shrink:0;"
+              onchange="onRepoCbChange('{{ ws_slug }}', '{{ proj_data.key }}')"
+            />
+            <span style="flex:1; font-size:13px;">{{ repo.repo_name }}</span>
+            {% if repo.branch %}
+            <code class="badge badge-blue" style="font-size:11px;">{{ repo.branch }}</code>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+
+      </details>
+      {% endfor %}
+    </div>
+
+  </div>
+  {% endfor %}
+
+  <!-- Bottom action bar -->
+  <div class="d-flex gap-8" style="justify-content:space-between; margin-top:8px; margin-bottom:40px;">
+    <a href="/" class="btn btn-outline">&larr; Start Over</a>
+    <button type="submit" class="btn btn-success">
+      &darr; Download CSV (<span class="sel-count-bottom">{{ total }}</span>)
+    </button>
+  </div>
+
+  <input type="hidden" name="repo_data" value='{{ repo_list | tojson }}' />
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ------------------------------------------------------------------
+  // Counter
+  // ------------------------------------------------------------------
+  function updateCounter() {
+    var total  = document.querySelectorAll('.repo-cb').length;
+    var checked = document.querySelectorAll('.repo-cb:checked').length;
+    document.getElementById('selCount').textContent    = checked;
+    document.getElementById('selCountBtn').textContent = checked;
+    document.querySelectorAll('.sel-count-bottom').forEach(function (el) {
+      el.textContent = checked;
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // Sync parent checkboxes (indeterminate state)
+  // ------------------------------------------------------------------
+  function syncParents(wsSlug, projKey) {
+    if (projKey) {
+      var allProj  = document.querySelectorAll('.repo-cb[data-ws="' + wsSlug + '"][data-proj="' + projKey + '"]');
+      var chkProj  = document.querySelectorAll('.repo-cb[data-ws="' + wsSlug + '"][data-proj="' + projKey + '"]:checked');
+      var projCb   = document.querySelector('.proj-toggle[data-ws="' + wsSlug + '"][data-proj="' + projKey + '"]');
+      if (projCb) {
+        projCb.indeterminate = chkProj.length > 0 && chkProj.length < allProj.length;
+        projCb.checked       = chkProj.length === allProj.length;
+      }
+    }
+    var allWs = document.querySelectorAll('.repo-cb[data-ws="' + wsSlug + '"]');
+    var chkWs = document.querySelectorAll('.repo-cb[data-ws="' + wsSlug + '"]:checked');
+    var wsCb  = document.querySelector('.ws-toggle[data-ws="' + wsSlug + '"]');
+    if (wsCb) {
+      wsCb.indeterminate = chkWs.length > 0 && chkWs.length < allWs.length;
+      wsCb.checked       = chkWs.length === allWs.length;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Toggle handlers
+  // ------------------------------------------------------------------
+  function toggleWorkspace(wsSlug, state) {
+    document.querySelectorAll('.repo-cb[data-ws="' + wsSlug + '"]').forEach(function (cb) {
+      cb.checked = state;
+    });
+    document.querySelectorAll('.proj-toggle[data-ws="' + wsSlug + '"]').forEach(function (cb) {
+      cb.checked = state;
+      cb.indeterminate = false;
+    });
+    updateCounter();
+  }
+
+  function toggleProject(wsSlug, projKey, state) {
+    document.querySelectorAll('.repo-cb[data-ws="' + wsSlug + '"][data-proj="' + projKey + '"]')
+      .forEach(function (cb) { cb.checked = state; });
+    var projCb = document.querySelector('.proj-toggle[data-ws="' + wsSlug + '"][data-proj="' + projKey + '"]');
+    if (projCb) projCb.indeterminate = false;
+    syncParents(wsSlug, null);
+    updateCounter();
+  }
+
+  function onRepoCbChange(wsSlug, projKey) {
+    syncParents(wsSlug, projKey);
+    updateCounter();
+  }
+
+  function toggleAll(state) {
+    document.querySelectorAll('.repo-cb').forEach(function (cb) { cb.checked = state; });
+    document.querySelectorAll('.proj-toggle, .ws-toggle').forEach(function (cb) {
+      cb.checked = state;
+      cb.indeterminate = false;
+    });
+    updateCounter();
+  }
+
+  // ------------------------------------------------------------------
+  // <details> arrow rotation
+  // ------------------------------------------------------------------
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('details').forEach(function (d) {
+      var arrow = d.querySelector('summary .summary-arrow');
+      if (arrow) arrow.style.transform = d.open ? 'rotate(90deg)' : '';
+      d.addEventListener('toggle', function () {
+        if (arrow) arrow.style.transform = d.open ? 'rotate(90deg)' : '';
+      });
+    });
+  });
+</script>
+{% endblock %}

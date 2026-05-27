@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Select Workspaces{% endblock %}
+
+{% block content %}
+
+<div class="step-indicator">
+  <span class="step">1 &middot; Connect</span>
+  <span class="step-sep">›</span>
+  <span class="step active">2 &middot; Workspaces</span>
+  <span class="step-sep">›</span>
+  <span class="step">3 &middot; Repositories</span>
+  <span class="step-sep">›</span>
+  <span class="step">4 &middot; Download</span>
+</div>
+
+<form method="POST" action="/repos" data-loading="Fetching projects and repositories…">
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        Select Workspaces
+        <span class="badge">{{ workspaces | length }}</span>
+      </h2>
+      <div class="d-flex gap-8">
+        <button type="button" class="btn btn-outline btn-sm" id="btnSelectAll">Select All</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btnSelectNone">Select None</button>
+      </div>
+    </div>
+
+    <p class="text-muted" style="margin: 0 0 16px;">
+      Choose the workspaces to scan. Only repositories within these workspaces
+      will appear on the next screen.
+    </p>
+
+    <div id="workspaceList">
+      {% for ws in workspaces %}
+      <div style="display:flex; align-items:center; gap:10px; padding:10px 0;
+                  border-bottom:1px solid #f0f3f5;">
+        <input
+          type="checkbox"
+          name="workspaces"
+          value="{{ ws.slug }}"
+          id="ws_{{ ws.slug }}"
+          checked
+          style="width:16px; height:16px; cursor:pointer; accent-color:#0072a3; flex-shrink:0;"
+        />
+        <label for="ws_{{ ws.slug }}" style="cursor:pointer; flex:1; line-height:1.4;">
+          <span class="fw-600">{{ ws.name or ws.slug }}</span>
+          {% if ws.name and ws.name != ws.slug %}
+            <span class="text-muted" style="margin-left:6px;">{{ ws.slug }}</span>
+          {% endif %}
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="d-flex gap-8">
+    <a href="/" class="btn btn-outline">&larr; Back</a>
+    <button type="submit" class="btn btn-primary">Fetch Repositories &rarr;</button>
+  </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('btnSelectAll').addEventListener('click', function () {
+    document.querySelectorAll('#workspaceList input[type="checkbox"]')
+      .forEach(function (cb) { cb.checked = true; });
+  });
+  document.getElementById('btnSelectNone').addEventListener('click', function () {
+    document.querySelectorAll('#workspaceList input[type="checkbox"]')
+      .forEach(function (cb) { cb.checked = false; });
+  });
+</script>
+{% endblock %}
