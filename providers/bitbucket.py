@@ -14,6 +14,8 @@ To create an API Token with the required scopes:
        read:repository:bitbucket
 """
 
+import re
+
 import requests
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
@@ -79,11 +81,16 @@ def get_repos(workspace: str, auth: HTTPBasicAuth) -> list[dict]:
     ))
 
 
+def _strip_userinfo(url: str) -> str:
+    """Remove embedded username from a URL (e.g. https://user@host/... → https://host/...)."""
+    return re.sub(r"(https?://)([^@]+@)", r"\1", url)
+
+
 def clone_url(repo: dict) -> str:
     """Extract the HTTPS clone URL from a repository object."""
     for link in repo.get("links", {}).get("clone", []):
         if link.get("name") == "https":
-            return link["href"]
+            return _strip_userinfo(link["href"])
     workspace = repo["workspace"]["slug"]
     slug = repo["slug"]
     return f"https://bitbucket.org/{workspace}/{slug}.git"
