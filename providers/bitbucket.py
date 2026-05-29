@@ -36,7 +36,7 @@ def _session(auth: HTTPBasicAuth) -> requests.Session:
     session.mount("https://", HTTPAdapter(max_retries=retry))
     return session
 
-CSV_HEADER = [
+CSV_HEADER_FIXED = [
     "Repository Url",
     "Branch",
     "Subfolder",
@@ -46,8 +46,6 @@ CSV_HEADER = [
     "Business App Technical Owner",
     "Business App Business Owner",
     "Cost",
-    "Program",
-    "Investment Status",
 ]
 
 

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Connect{% endblock %}
 
+
 {% block content %}
 
 <div class="step-indicator">
@@ -8,9 +9,7 @@
   <span class="step-sep">›</span>
   <span class="step">2 &middot; Workspaces</span>
   <span class="step-sep">›</span>
-  <span class="step">3 &middot; Repositories</span>
-  <span class="step-sep">›</span>
-  <span class="step">4 &middot; Download</span>
+  <span class="step">3 &middot; Repositories &amp; Download</span>
 </div>
 
 <form method="POST" action="/workspaces" data-loading="Fetching workspaces from Bitbucket…">
@@ -86,18 +85,18 @@
                  placeholder="e.g. High, Medium, Low" />
         </div>
 
-        <div class="form-group">
-          <label class="field-label" for="program">Program</label>
-          <input type="text" id="program" name="program"
-                 value="{{ defaults.program }}"
-                 placeholder="Optional grouping / filter category" />
-        </div>
-
-        <div class="form-group">
-          <label class="field-label" for="investment_status">Investment Status</label>
-          <input type="text" id="investment_status" name="investment_status"
-                 value="{{ defaults.investment_status }}"
-                 placeholder="e.g. Strategic, Sustain, Retire" />
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+            <label class="field-label" style="margin:0;">
+              Custom Columns <span class="text-muted" style="font-weight:400;">(after "Cost")</span>
+            </label>
+            <button type="button" class="btn btn-outline btn-sm" onclick="addExtraColumn()">+ Add Column</button>
+          </div>
+          <p class="helper-text" style="margin-bottom:8px;">
+            The assessment tool accepts any columns after "Cost". Add custom columns here and set a
+            default value that will be applied to every row. Leave blank to fill in the CSV manually.
+          </p>
+          <div id="extra-columns-list"></div>
         </div>
 
       </div>
@@ -112,4 +111,51 @@
 
 </form>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+var INITIAL_EXTRA_COLUMNS = {{ defaults.extra_columns | tojson }};
+
+function renderExtraColumns(cols) {
+  var list = document.getElementById('extra-columns-list');
+  list.innerHTML = '';
+  if (!cols.length) {
+    list.innerHTML = '<p id="no-columns-msg" class="text-muted" style="font-style:italic; margin:4px 0 0;">No custom columns \u2014 click \u201c+ Add Column\u201d to add one.</p>';
+    return;
+  }
+  cols.forEach(function(col) { addExtraColumnRow(col.name, col.default); });
+}
+
+function addExtraColumn() {
+  var msg = document.getElementById('no-columns-msg');
+  if (msg) msg.remove();
+  addExtraColumnRow('', '');
+}
+
+function addExtraColumnRow(name, def) {
+  var list = document.getElementById('extra-columns-list');
+  var row = document.createElement('div');
+  row.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:6px;';
+  row.innerHTML =
+    '<input type="text" name="extra_col_name" placeholder="Column name" value="' + _esc(name) + '" style="flex:1;" />' +
+    '<input type="text" name="extra_col_default" placeholder="Default value (optional)" value="' + _esc(def) + '" style="flex:1;" />' +
+    '<button type="button" onclick="this.parentNode.remove(); syncEmptyMsg();"' +
+    ' style="flex-shrink:0; padding:4px 10px; border:1px solid #c92100; background:none; color:#c92100; cursor:pointer; border-radius:3px;">Remove</button>';
+  list.appendChild(row);
+}
+
+function syncEmptyMsg() {
+  var list = document.getElementById('extra-columns-list');
+  if (!list.querySelector('input')) {
+    list.innerHTML = '<p id="no-columns-msg" class="text-muted" style="font-style:italic; margin:4px 0 0;">No custom columns \u2014 click \u201c+ Add Column\u201d to add one.</p>';
+  }
+}
+
+function _esc(s) {
+  return (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+document.addEventListener('DOMContentLoaded', function() { renderExtraColumns(INITIAL_EXTRA_COLUMNS); });
+</script>
 {% endblock %}

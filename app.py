@@ -26,7 +26,7 @@ from flask import (Flask, Response, flash, redirect, render_template,
                    request, session, url_for)
 from requests.auth import HTTPBasicAuth
 
-from providers.bitbucket import CSV_HEADER, fetch_repos_for_workspaces, get_workspaces
+from providers.bitbucket import CSV_HEADER_FIXED, fetch_repos_for_workspaces, get_workspaces
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
@@ -36,13 +36,23 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 # ---------------------------------------------------------------------------
 # Server-side defaults — override via CF environment variables
 # ---------------------------------------------------------------------------
+def _parse_extra_columns_env() -> list:
+    try:
+        cols = json.loads(os.environ.get("DEFAULT_EXTRA_COLUMNS", "[]"))
+        if isinstance(cols, list):
+            return [{"name": str(c.get("name", "")), "default": str(c.get("default", ""))}
+                    for c in cols if isinstance(c, dict)]
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    return []
+
+
 SERVER_DEFAULTS = {
     "business_criticality": os.environ.get("DEFAULT_BUSINESS_CRITICALITY", "High"),
     "technical_owner":      os.environ.get("DEFAULT_TECHNICAL_OWNER", "Sandeep"),
     "business_owner":       os.environ.get("DEFAULT_BUSINESS_OWNER", ""),
     "cost":                 os.environ.get("DEFAULT_COST", "High"),
-    "program":              os.environ.get("DEFAULT_PROGRAM", ""),
-    "investment_status":    os.environ.get("DEFAULT_INVESTMENT_STATUS", ""),
+    "extra_columns":        _parse_extra_columns_env(),
 }
 
 
@@ -69,13 +79,17 @@ def workspaces():
 
     session["username"] = username
     session["password"] = password
+    col_names    = request.form.getlist("extra_col_name")
+    col_defaults = request.form.getlist("extra_col_default")
     session["defaults"] = {
         "business_criticality": request.form.get("business_criticality", SERVER_DEFAULTS["business_criticality"]),
         "technical_owner":      request.form.get("technical_owner",      SERVER_DEFAULTS["technical_owner"]),
         "business_owner":       request.form.get("business_owner",       SERVER_DEFAULTS["business_owner"]),
         "cost":                 request.form.get("cost",                 SERVER_DEFAULTS["cost"]),
-        "program":              request.form.get("program",              SERVER_DEFAULTS["program"]),
-        "investment_status":    request.form.get("investment_status",    SERVER_DEFAULTS["investment_status"]),
+        "extra_columns": [
+            {"name": n.strip(), "default": d}
+            for n, d in zip(col_names, col_defaults) if n.strip()
+        ],
     }
 
     try:
@@ -151,9 +165,10 @@ def download():
 
     d = session.get("defaults", SERVER_DEFAULTS)
 
+    extra_cols = d.get("extra_columns", [])
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(CSV_HEADER)
+    writer.writerow(CSV_HEADER_FIXED + [c["name"] for c in extra_cols])
     for r in selected_repos:
         writer.writerow([
             r["clone_url"],
@@ -165,8 +180,7 @@ def download():
             d.get("technical_owner", ""),
             d.get("business_owner", ""),
             d.get("cost", ""),
-            d.get("program", ""),
-            d.get("investment_status", ""),
+            *[c["default"] for c in extra_cols],
         ])
 
     output.seek(0)

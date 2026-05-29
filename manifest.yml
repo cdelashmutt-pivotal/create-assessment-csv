@@ -18,5 +18,7 @@ applications:
       DEFAULT_TECHNICAL_OWNER: Sandeep
       DEFAULT_BUSINESS_OWNER: ""
       DEFAULT_COST: High
-      DEFAULT_PROGRAM: ""
-      DEFAULT_INVESTMENT_STATUS: ""
+
+      # Custom columns appended after "Cost" — set as a JSON array. Example:
+      #   cf set-env repo-assessment-csv DEFAULT_EXTRA_COLUMNS '[{"name":"Program","default":""},{"name":"Investment Status","default":"Sustain"}]'
+      # If not set, no extra columns are added (customers configure them in the UI).

@@ -31,7 +31,7 @@ import sys
 import requests
 from requests.auth import HTTPBasicAuth
 
-from providers.bitbucket import CSV_HEADER, fetch_repos_for_workspaces, get_workspaces
+from providers.bitbucket import CSV_HEADER_FIXED, fetch_repos_for_workspaces, get_workspaces
 
 # ---------------------------------------------------------------------------
 # Configuration — edit these values before running
@@ -42,8 +42,16 @@ DEFAULT_BUSINESS_CRITICALITY = "High" # Can be anything but be consistent (e.g. 
 DEFAULT_TECHNICAL_OWNER = "Sandeep"   # Free text so it could be just names, email, etc.
 DEFAULT_BUSINESS_OWNER = ""           # Free text so it could be just names, email, etc.
 DEFAULT_COST = "High"                 # High, Medium, Low
-DEFAULT_PROGRAM = ""                  # Another category you can use to filter apps. Can be anything.
-DEFAULT_INVESTMENT_STATUS = ""        # Another arbitrary value. (e.g. Strategic, Sustain, Tolerate, Migrate, Contain, Retire)
+
+# ---------------------------------------------------------------------------
+# Extra columns — appended after "Cost" in every row.
+# Add any number of custom columns here. Example:
+#   EXTRA_COLUMNS = [
+#       {"name": "Program",           "default": ""},
+#       {"name": "Investment Status", "default": "Sustain"},
+#   ]
+# ---------------------------------------------------------------------------
+EXTRA_COLUMNS = []
 
 # Workspace slug(s) to export.
 # Leave as an empty list [] to auto-discover all workspaces the user belongs to.
@@ -102,15 +110,14 @@ def main():
             DEFAULT_TECHNICAL_OWNER,
             DEFAULT_BUSINESS_OWNER,
             DEFAULT_COST,
-            DEFAULT_PROGRAM,
-            DEFAULT_INVESTMENT_STATUS,
+            *[c["default"] for c in EXTRA_COLUMNS],
         ]
         for r in repos
     ]
 
     with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(CSV_HEADER)
+        writer.writerow(CSV_HEADER_FIXED + [c["name"] for c in EXTRA_COLUMNS])
         writer.writerows(rows)
 
     print(f"\nDone. Wrote {len(rows)} row(s) to {OUTPUT_FILE}")
