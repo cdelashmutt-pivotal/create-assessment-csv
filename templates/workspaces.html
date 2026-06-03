@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Select Workspaces{% endblock %}
+{% block title %}Select {{ workspace_label }}s{% endblock %}
 
 {% block content %}
 
 <div class="step-indicator">
   <span class="step">1 &middot; Connect</span>
   <span class="step-sep">›</span>
-  <span class="step active">2 &middot; Workspaces</span>
+  <span class="step active">2 &middot; {{ workspace_label }}s</span>
   <span class="step-sep">›</span>
   <span class="step">3 &middot; Repositories &amp; Download</span>
 </div>
@@ -15,7 +15,7 @@
   <div class="card">
     <div class="card-header">
       <h2 class="card-title">
-        Select Workspaces
+        Select {{ workspace_label }}s
         <span class="badge">{{ workspaces | length }}</span>
       </h2>
       <div class="d-flex gap-8">
@@ -25,8 +25,8 @@
     </div>
 
     <p class="text-muted" style="margin: 0 0 16px;">
-      Choose the workspaces to scan. Only repositories within these workspaces
-      will appear on the next screen.
+      Choose the {{ workspace_label | lower }}s to scan. Only repositories within these
+      {{ workspace_label | lower }}s will appear on the next screen.
     </p>
 
     <div id="workspaceList">

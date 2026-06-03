@@ -1,8 +1,7 @@
 """
 Bitbucket Cloud API helpers for the assessment CSV generator.
 
-All public functions accept a ``requests.auth.HTTPBasicAuth`` instance.
-The canonical authentication method is Bitbucket username + API Token.
+Authentication: Bitbucket username + API Token.
 
 To create an API Token with the required scopes:
   1. Click your profile picture in Bitbucket → Security
@@ -12,6 +11,10 @@ To create an API Token with the required scopes:
        read:workspace:bitbucket
        read:project:bitbucket
        read:repository:bitbucket
+
+For self-hosted Bitbucket Server / Data Center, set base_url to your instance:
+    e.g. https://bitbucket.example.com/rest/api/1.0
+    (Note: Bitbucket Server uses a different REST API — cloud support only for now.)
 """
 
 import re
@@ -21,35 +24,27 @@ from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 from urllib3.util.retry import Retry
 
-BASE_URL = "https://api.bitbucket.org/2.0"
+DEFAULT_BASE_URL = "https://api.bitbucket.org/2.0"
 _USER_AGENT = "repo-assessment-csv/1.0"
 
 
-def _session(auth: HTTPBasicAuth) -> requests.Session:
-    """Return a Session with auth, User-Agent, and retry logic."""
-    session = requests.Session()
-    session.auth = auth
-    session.headers.update({"User-Agent": _USER_AGENT})
+def _session(auth: dict) -> requests.Session:
+    """Return a Session with Basic auth, User-Agent, and retry logic."""
+    sess = requests.Session()
+    sess.auth = HTTPBasicAuth(auth["username"], auth["token"])
+    sess.headers.update({"User-Agent": _USER_AGENT})
     retry = Retry(total=3, backoff_factor=0.5,
                   status_forcelist=[500, 502, 503, 504],
                   allowed_methods=["GET"])
-    session.mount("https://", HTTPAdapter(max_retries=retry))
-    return session
-
-CSV_HEADER_FIXED = [
-    "Repository Url",
-    "Branch",
-    "Subfolder",
-    "App Name",
-    "Business Criticality",
-    "Business App",
-    "Business App Technical Owner",
-    "Business App Business Owner",
-    "Cost",
-]
+    sess.mount("https://", HTTPAdapter(max_retries=retry))
+    return sess
 
 
-def paginate(url: str, auth: HTTPBasicAuth, params: dict = None):
+def _base(auth: dict) -> str:
+    return auth.get("base_url", DEFAULT_BASE_URL).rstrip("/")
+
+
+def paginate(url: str, auth: dict, params: dict = None):
     """Yield every item from a paginated Bitbucket API endpoint."""
     sess = _session(auth)
     next_url = url
@@ -65,15 +60,15 @@ def paginate(url: str, auth: HTTPBasicAuth, params: dict = None):
         next_url = data.get("next")
 
 
-def get_workspaces(auth: HTTPBasicAuth) -> list[dict]:
+def get_workspaces(auth: dict) -> list[dict]:
     """Return workspace objects the authenticated user belongs to."""
-    return [m["workspace"] for m in paginate(f"{BASE_URL}/user/workspaces", auth)]
+    return [m["workspace"] for m in paginate(f"{_base(auth)}/user/workspaces", auth)]
 
 
-def get_repos(workspace: str, auth: HTTPBasicAuth) -> list[dict]:
+def get_repos(workspace: str, auth: dict) -> list[dict]:
     """Return all repos in a workspace."""
     return list(paginate(
-        f"{BASE_URL}/repositories/{workspace}",
+        f"{_base(auth)}/repositories/{workspace}",
         auth,
         {"pagelen": 100},
     ))
@@ -100,15 +95,14 @@ def default_branch(repo: dict) -> str:
     return mb["name"] if mb and mb.get("name") else ""
 
 
-def fetch_repos_for_workspaces(workspace_slugs: list[str], auth: HTTPBasicAuth) -> list[dict]:
+def fetch_repos_for_workspaces(workspace_slugs: list[str], auth: dict) -> list[dict]:
     """
     Fetch all repos across the given workspaces.
 
     Returns a flat list of dicts with keys:
         workspace, project_key, project_name, repo_name, slug, clone_url, branch
 
-    Workspaces or projects that return an HTTP error are skipped with a warning
-    printed to stdout.
+    Workspaces that return an HTTP error are skipped with a warning.
     """
     repos = []
     for ws in workspace_slugs:

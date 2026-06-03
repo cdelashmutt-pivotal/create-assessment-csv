@@ -3,10 +3,12 @@
 Flask web app — Repository Assessment CSV Generator
 
 Multi-step wizard:
-  1. Enter Bitbucket credentials + configure CSV defaults
-  2. Select workspaces to include
+  1. Select provider, enter credentials + configure CSV defaults
+  2. Select workspaces / organizations / groups to include
   3. Review and toggle individual repos
   4. Download the generated CSV
+
+Supported providers: Bitbucket, GitHub, GitLab, Azure DevOps, Gitea/Forgejo
 
 Run locally:
     flask run          (then open http://localhost:5000)
@@ -24,9 +26,8 @@ import secrets
 import requests
 from flask import (Flask, Response, flash, redirect, render_template,
                    request, session, url_for)
-from requests.auth import HTTPBasicAuth
 
-from providers.bitbucket import CSV_HEADER_FIXED, fetch_repos_for_workspaces, get_workspaces
+from providers import CSV_HEADER_FIXED, PROVIDER_BASE_URLS, WORKSPACE_LABELS, get_provider
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
@@ -56,8 +57,15 @@ SERVER_DEFAULTS = {
 }
 
 
-def _auth() -> HTTPBasicAuth:
-    return HTTPBasicAuth(session["username"], session["password"])
+def _auth() -> dict:
+    provider = session.get("provider", "bitbucket")
+    auth = {
+        "token":    session["password"],
+        "base_url": session.get("base_url", PROVIDER_BASE_URLS.get(provider, "")),
+    }
+    if provider == "bitbucket":
+        auth["username"] = session.get("username", "")
+    return auth
 
 
 # ---------------------------------------------------------------------------
@@ -66,19 +74,45 @@ def _auth() -> HTTPBasicAuth:
 
 @app.route("/", methods=["GET"])
 def index():
-    return render_template("index.html", defaults=SERVER_DEFAULTS)
+    return render_template(
+        "index.html",
+        defaults=SERVER_DEFAULTS,
+        provider_base_urls=PROVIDER_BASE_URLS,
+    )
 
 
 @app.route("/workspaces", methods=["POST"])
 def workspaces():
-    username = request.form.get("username", "").strip()
-    password = request.form.get("password", "").strip()
-    if not username or not password:
-        flash("Username and password are required.", "danger")
+    provider = request.form.get("provider", "bitbucket").strip()
+    base_url  = request.form.get("base_url", "").strip()
+    username  = request.form.get("username", "").strip()
+    password  = request.form.get("password", "").strip()
+
+    if not password:
+        flash("API Token is required.", "danger")
+        return redirect(url_for("index"))
+    if provider == "bitbucket" and not username:
+        flash("Username is required for Bitbucket.", "danger")
+        return redirect(url_for("index"))
+    if provider == "gitea" and not base_url:
+        flash("Instance URL is required for Gitea/Forgejo.", "danger")
         return redirect(url_for("index"))
 
-    session["username"] = username
-    session["password"] = password
+    try:
+        mod = get_provider(provider)
+    except ValueError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("index"))
+
+    # Fall back to provider's cloud default if no base_url supplied
+    if not base_url:
+        base_url = mod.DEFAULT_BASE_URL
+
+    session["provider"]  = provider
+    session["base_url"]  = base_url
+    session["username"]  = username
+    session["password"]  = password
+
     col_names    = request.form.getlist("extra_col_name")
     col_defaults = request.form.getlist("extra_col_default")
     session["defaults"] = {
@@ -93,31 +127,35 @@ def workspaces():
     }
 
     try:
-        ws_list = get_workspaces(_auth())
+        ws_list = mod.get_workspaces(_auth())
     except requests.HTTPError as exc:
         flash(f"Authentication failed or API error: {exc}", "danger")
         return redirect(url_for("index"))
     except requests.RequestException as exc:
-        flash(f"Network error connecting to Bitbucket: {exc}", "danger")
+        flash(f"Network error connecting to {provider}: {exc}", "danger")
         return redirect(url_for("index"))
 
     if not ws_list:
-        flash("No workspaces found for these credentials.", "warning")
+        flash(f"No {WORKSPACE_LABELS.get(provider, 'workspaces').lower()}s found for these credentials.", "warning")
         return redirect(url_for("index"))
 
     session["workspace_names"] = {ws["slug"]: ws.get("name", ws["slug"]) for ws in ws_list}
-    return render_template("workspaces.html", workspaces=ws_list)
+    workspace_label = WORKSPACE_LABELS.get(provider, "Workspace")
+    return render_template("workspaces.html", workspaces=ws_list, workspace_label=workspace_label)
 
 
 @app.route("/repos", methods=["POST"])
 def repos():
+    provider = session.get("provider", "bitbucket")
     selected_slugs = request.form.getlist("workspaces")
     if not selected_slugs:
-        flash("Please select at least one workspace.", "warning")
+        workspace_label = WORKSPACE_LABELS.get(provider, "Workspace")
+        flash(f"Please select at least one {workspace_label.lower()}.", "warning")
         return redirect(url_for("index"))
 
     try:
-        repo_list = fetch_repos_for_workspaces(selected_slugs, _auth())
+        mod = get_provider(provider)
+        repo_list = mod.fetch_repos_for_workspaces(selected_slugs, _auth())
     except requests.HTTPError as exc:
         flash(f"API error while fetching repositories: {exc}", "danger")
         return redirect(url_for("index"))
@@ -126,7 +164,8 @@ def repos():
         return redirect(url_for("index"))
 
     if not repo_list:
-        flash("No repositories found in the selected workspace(s).", "warning")
+        workspace_label = WORKSPACE_LABELS.get(provider, "workspace")
+        flash(f"No repositories found in the selected {workspace_label.lower()}(s).", "warning")
         return redirect(url_for("index"))
 
     for i, r in enumerate(repo_list):

@@ -7,27 +7,54 @@
 <div class="step-indicator">
   <span class="step active">1 &middot; Connect</span>
   <span class="step-sep">›</span>
-  <span class="step">2 &middot; Workspaces</span>
+  <span class="step" id="breadcrumb-step2">2 &middot; Workspaces</span>
   <span class="step-sep">›</span>
   <span class="step">3 &middot; Repositories &amp; Download</span>
 </div>
 
-<form method="POST" action="/workspaces" data-loading="Fetching workspaces from Bitbucket…">
+<form method="POST" action="/workspaces" id="connectForm" data-loading="Fetching workspaces…">
 
-  <!-- Credentials card -->
+  <!-- Provider + credentials card -->
   <div class="card">
     <div class="card-header">
-      <h2 class="card-title">Bitbucket Credentials</h2>
+      <h2 class="card-title" id="credCardTitle">Git Provider &amp; Credentials</h2>
     </div>
     <div class="form-grid">
-      <div class="form-group">
-        <label class="field-label" for="username">Username</label>
-        <input type="text" id="username" name="username" placeholder="jdoe" required autofocus />
+
+      <!-- Provider selector -->
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label class="field-label" for="provider">Git Provider</label>
+        <select id="provider" name="provider" onchange="onProviderChange()" style="width:100%; max-width:340px;">
+          <option value="bitbucket">Bitbucket</option>
+          <option value="github">GitHub</option>
+          <option value="gitlab">GitLab</option>
+          <option value="azuredevops">Azure DevOps</option>
+          <option value="gitea">Gitea / Forgejo</option>
+        </select>
       </div>
+
+      <!-- Base URL (shown for all; required for Gitea) -->
+      <div class="form-group" style="grid-column: 1 / -1;" id="baseUrlGroup">
+        <label class="field-label" for="base_url" id="baseUrlLabel">API Base URL</label>
+        <input type="url" id="base_url" name="base_url"
+               placeholder="https://api.bitbucket.org/2.0" style="width:100%; max-width:480px;" />
+        <p class="helper-text" id="baseUrlHelp">
+          Leave as-is for the cloud service. Change only if you are using a
+          self-hosted instance.
+        </p>
+      </div>
+
+      <!-- Username (Bitbucket only) -->
+      <div class="form-group" id="usernameGroup">
+        <label class="field-label" for="username">Username</label>
+        <input type="text" id="username" name="username" placeholder="jdoe" autofocus />
+      </div>
+
+      <!-- Token -->
       <div class="form-group">
-        <label class="field-label" for="password">API Token</label>
+        <label class="field-label" for="password" id="tokenLabel">API Token</label>
         <input type="password" id="password" name="password" required />
-        <p class="helper-text">
+        <p class="helper-text" id="tokenHelp">
           Click your profile picture &rarr; <strong>Security</strong> &rarr;
           <strong>Create API Token with Scopes</strong> for the
           <strong>BitBucket</strong> app.<br />
@@ -37,6 +64,7 @@
           <code>read:repository:bitbucket</code>.
         </p>
       </div>
+
     </div>
   </div>
 
@@ -104,7 +132,7 @@
   </details>
 
   <div style="margin-top:8px;">
-    <button type="submit" class="btn btn-primary">
+    <button type="submit" class="btn btn-primary" id="connectBtn">
       Connect &amp; Fetch Workspaces &rarr;
     </button>
   </div>
@@ -116,6 +144,129 @@
 {% block scripts %}
 <script>
 var INITIAL_EXTRA_COLUMNS = {{ defaults.extra_columns | tojson }};
+
+var PROVIDER_BASE_URLS = {{ provider_base_urls | tojson }};
+
+var PROVIDER_INFO = {
+  bitbucket: {
+    tokenLabel:     'API Token',
+    tokenHelp:      'Click your profile picture \u2192 <strong>Security</strong> \u2192 '
+                  + '<strong>Create API Token with Scopes</strong> for the <strong>BitBucket</strong> app.<br />'
+                  + 'Required scopes: <code>read:account</code>, <code>read:workspace:bitbucket</code>, '
+                  + '<code>read:project:bitbucket</code>, <code>read:repository:bitbucket</code>.',
+    needsUsername:  true,
+    baseUrlHelp:    'Leave as-is for Bitbucket Cloud. Change only for Bitbucket Data Center / Server.',
+    baseUrlRequired: false,
+    workspaceLabel: 'Workspaces',
+    loadingText:    'Fetching workspaces from Bitbucket\u2026',
+    connectLabel:   'Connect &amp; Fetch Workspaces &rarr;',
+  },
+  github: {
+    tokenLabel:     'Personal Access Token',
+    tokenHelp:      'Create a token at <strong>Settings \u2192 Developer settings \u2192 Personal access tokens</strong>.<br />'
+                  + 'Required scopes: <code>repo</code> (or <code>read:org</code> + <code>read:user</code>).',
+    needsUsername:  false,
+    baseUrlHelp:    'Leave as-is for GitHub.com. Change to your GitHub Enterprise Server API URL, '
+                  + 'e.g. <code>https://github.example.com/api/v3</code>.',
+    baseUrlRequired: false,
+    workspaceLabel: 'Organizations',
+    loadingText:    'Fetching organizations from GitHub\u2026',
+    connectLabel:   'Connect &amp; Fetch Organizations &rarr;',
+  },
+  gitlab: {
+    tokenLabel:     'Personal Access Token',
+    tokenHelp:      'Create a token at <strong>User Settings \u2192 Access Tokens</strong>.<br />'
+                  + 'Required scopes: <code>read_api</code>.',
+    needsUsername:  false,
+    baseUrlHelp:    'Leave as-is for GitLab.com. Change to your self-managed instance URL, '
+                  + 'e.g. <code>https://gitlab.example.com</code>.',
+    baseUrlRequired: false,
+    workspaceLabel: 'Groups',
+    loadingText:    'Fetching groups from GitLab\u2026',
+    connectLabel:   'Connect &amp; Fetch Groups &rarr;',
+  },
+  azuredevops: {
+    tokenLabel:     'Personal Access Token',
+    tokenHelp:      'Create a PAT at <strong>User settings \u2192 Personal access tokens</strong> in Azure DevOps.<br />'
+                  + 'Required scopes: <strong>Code (Read)</strong>, <strong>Project and Team (Read)</strong>.',
+    needsUsername:  false,
+    baseUrlHelp:    'Leave as-is for Azure DevOps Services (cloud). For Azure DevOps Server (on-premises), '
+                  + 'enter your collection URL, e.g. <code>https://ado.example.com/tfs/MyCollection</code>.',
+    baseUrlRequired: false,
+    workspaceLabel: 'Organizations',
+    loadingText:    'Fetching organizations from Azure DevOps\u2026',
+    connectLabel:   'Connect &amp; Fetch Organizations &rarr;',
+  },
+  gitea: {
+    tokenLabel:     'API Token',
+    tokenHelp:      'Create a token at <strong>Settings \u2192 Applications \u2192 Manage Access Tokens</strong>.<br />'
+                  + 'Required scopes: <code>read:organization</code>, <code>read:repository</code>, <code>read:user</code>.',
+    needsUsername:  false,
+    baseUrlHelp:    'Enter your Gitea / Forgejo instance URL, e.g. <code>https://gitea.example.com</code>.',
+    baseUrlRequired: true,
+    workspaceLabel: 'Organizations',
+    loadingText:    'Fetching organizations from Gitea\u2026',
+    connectLabel:   'Connect &amp; Fetch Organizations &rarr;',
+  },
+};
+
+// Track whether the user has manually edited the base URL
+var baseUrlUserEdited = false;
+document.getElementById('base_url').addEventListener('input', function() {
+  baseUrlUserEdited = true;
+});
+
+function onProviderChange() {
+  var provider = document.getElementById('provider').value;
+  var info = PROVIDER_INFO[provider] || PROVIDER_INFO.bitbucket;
+
+  // Update base URL (only auto-fill if user hasn't typed a custom value)
+  var baseUrlInput = document.getElementById('base_url');
+  if (!baseUrlUserEdited) {
+    baseUrlInput.value = PROVIDER_BASE_URLS[provider] || '';
+    baseUrlInput.placeholder = PROVIDER_BASE_URLS[provider] || 'https://your-instance.example.com';
+  }
+  document.getElementById('base_url').required = info.baseUrlRequired;
+  document.getElementById('baseUrlHelp').innerHTML = info.baseUrlHelp;
+
+  // Show/hide username
+  document.getElementById('usernameGroup').style.display = info.needsUsername ? '' : 'none';
+  document.getElementById('username').required = info.needsUsername;
+  if (!info.needsUsername) {
+    document.getElementById('username').value = '';
+  }
+
+  // Update token label + help
+  document.getElementById('tokenLabel').textContent = info.tokenLabel;
+  document.getElementById('tokenHelp').innerHTML = info.tokenHelp;
+
+  // Update breadcrumb step 2 label
+  document.getElementById('breadcrumb-step2').textContent = '2 \u00b7 ' + info.workspaceLabel;
+
+  // Update form loading text and connect button
+  document.getElementById('connectForm').setAttribute('data-loading', info.loadingText);
+  document.getElementById('connectBtn').innerHTML = info.connectLabel;
+}
+
+// Initialise on load
+document.addEventListener('DOMContentLoaded', function() {
+  // Pre-fill base URL with Bitbucket default
+  var baseUrlInput = document.getElementById('base_url');
+  if (!baseUrlInput.value) {
+    baseUrlInput.value = PROVIDER_BASE_URLS['bitbucket'] || '';
+  }
+  onProviderChange();
+  renderExtraColumns(INITIAL_EXTRA_COLUMNS);
+});
+
+// Reset the "user edited" flag when provider changes so subsequent provider
+// switches still auto-fill, unless the user edits again after
+document.getElementById('provider').addEventListener('change', function() {
+  baseUrlUserEdited = false;
+});
+
+
+// ---- Extra columns helpers ----
 
 function renderExtraColumns(cols) {
   var list = document.getElementById('extra-columns-list');
@@ -155,7 +306,5 @@ function syncEmptyMsg() {
 function _esc(s) {
   return (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
-
-document.addEventListener('DOMContentLoaded', function() { renderExtraColumns(INITIAL_EXTRA_COLUMNS); });
 </script>
 {% endblock %}
