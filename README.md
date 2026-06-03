@@ -1,6 +1,9 @@
 # Repository Assessment CSV Generator
 
-Generates a CSV file in the format expected by the Tanzu assessment import template, populated with repositories from Bitbucket Cloud.
+Generates a CSV file in the format expected by the Tanzu assessment import template, populated with repositories from your Git provider.
+
+**Supported providers:** Bitbucket Cloud, GitHub, GitLab, Azure DevOps, Gitea / Forgejo.
+Self-hosted / on-premises instances are supported for all providers via a configurable base URL.
 
 Two modes are available:
 
@@ -12,13 +15,16 @@ Two modes are available:
 ## Prerequisites
 
 - Python 3.12+
-- A Bitbucket Cloud account with access to the workspaces you want to export
+- An account on your chosen Git provider with read access to the repositories you want to export
 
-### Bitbucket API Token
+### API Tokens
 
-The tool authenticates with a Bitbucket API Token scoped to the minimum required permissions.
+Each provider uses a Personal Access Token (or API Token) for authentication.
+Only the minimum read scopes are required.
 
-1. Click your **profile picture** in Bitbucket → **Security**
+#### Bitbucket Cloud
+
+1. Click your **profile picture** → **Security**
 2. Under "API tokens", select **Create API Token with Scopes**
 3. Choose the **BitBucket** app and enable these scopes:
    - `read:account`
@@ -26,6 +32,26 @@ The tool authenticates with a Bitbucket API Token scoped to the minimum required
    - `read:project:bitbucket`
    - `read:repository:bitbucket`
 4. Copy the generated token — you will not be able to view it again
+
+#### GitHub / GitHub Enterprise Server
+
+1. Go to **Settings → Developer settings → Personal access tokens**
+2. Create a token with scopes: `repo` (or `read:org` + `read:user` for org repos only)
+
+#### GitLab / GitLab self-managed
+
+1. Go to **User Settings → Access Tokens**
+2. Create a token with scope: `read_api`
+
+#### Azure DevOps Services / Azure DevOps Server
+
+1. Go to **User settings → Personal access tokens** in Azure DevOps
+2. Create a token with scopes: **Code (Read)**, **Project and Team (Read)**
+
+#### Gitea / Forgejo
+
+1. Go to **Settings → Applications → Manage Access Tokens**
+2. Create a token with scopes: `read:organization`, `read:repository`, `read:user`
 
 ---
 
@@ -45,39 +71,59 @@ pip install --no-index --find-links vendor -r requirements.txt
 
 ### Run
 
+The script prompts interactively for credentials. The default provider is Bitbucket.
+
 ```bash
 python generate_assessment_csv.py
 ```
 
-You will be prompted for your Bitbucket username and API token. The token is entered silently (no echo).
+Use `--provider` to target a different provider:
 
+```bash
+# GitHub
+python generate_assessment_csv.py --provider github --token <PAT>
+
+# GitLab
+python generate_assessment_csv.py --provider gitlab --token <PAT>
+
+# Azure DevOps
+python generate_assessment_csv.py --provider azuredevops --token <PAT>
+
+# Gitea / Forgejo (instance URL required)
+python generate_assessment_csv.py --provider gitea --base-url https://gitea.example.com --token <tok>
+
+# Self-hosted GitLab
+python generate_assessment_csv.py --provider gitlab --base-url https://gitlab.example.com --token <PAT>
+
+# Specific orgs / workspaces only
+python generate_assessment_csv.py --provider github --token <PAT> --workspaces my-org,another-org
 ```
-Bitbucket API Token required.
-  Profile picture → Security → Create API Token with Scopes (BitBucket app)
-  Scopes: read:account, read:workspace:bitbucket, read:project:bitbucket, read:repository:bitbucket
 
-Bitbucket username: jdoe
-API Token:
-Processing 3 workspace(s): my-workspace, another-workspace, shared-workspace
+All flags:
 
-Done. Wrote 142 row(s) to assessment_input.csv
-```
+| Flag | Description |
+|---|---|
+| `--provider` | `bitbucket` (default), `github`, `gitlab`, `azuredevops`, `gitea` |
+| `--base-url` | Override the API base URL (required for Gitea; optional for self-hosted instances of other providers) |
+| `--token` | API / Personal Access Token (prompted interactively if omitted) |
+| `--username` | Username — Bitbucket only (prompted interactively if omitted) |
+| `--workspaces` | Comma-separated workspace / org / group slugs to export (auto-discovers all if omitted) |
+| `--output` | Output CSV file path (default: `assessment_input.csv`) |
 
-The output file `assessment_input.csv` is written to the current directory.
+The output file is written to the current directory (or the path given by `--output`).
 
 ### Configuration
 
-Open `generate_assessment_csv.py` and edit the values in the configuration block near the top of the file:
+Open `generate_assessment_csv.py` and edit the values in the configuration block near the top of the file to set persistent defaults without using flags:
 
 | Variable | Default | Description |
 |---|---|---|
-| `WORKSPACES` | `[]` | List of workspace slugs to export. Leave empty to auto-discover all workspaces the user belongs to. |
+| `WORKSPACES` | `[]` | List of workspace / org / group slugs to export. Leave empty to auto-discover all. |
 | `DEFAULT_BUSINESS_CRITICALITY` | `High` | Applied to every row |
 | `DEFAULT_TECHNICAL_OWNER` | `Sandeep` | Applied to every row |
 | `DEFAULT_BUSINESS_OWNER` | _(empty)_ | Applied to every row |
 | `DEFAULT_COST` | `High` | Applied to every row |
-| `DEFAULT_PROGRAM` | _(empty)_ | Applied to every row |
-| `DEFAULT_INVESTMENT_STATUS` | _(empty)_ | Applied to every row |
+| `EXTRA_COLUMNS` | `[]` | Additional columns appended after "Cost". Each entry is `{"name": "Column Name", "default": "value"}`. |
 | `OUTPUT_FILE` | `assessment_input.csv` | Output file path |
 
 ---
@@ -91,7 +137,13 @@ flask run
 
 Then open [http://localhost:5000](http://localhost:5000).
 
-The wizard walks through four steps: connect, select workspaces, review repositories, and download the CSV.
+The wizard walks through three steps:
+
+1. **Connect** — select your Git provider, enter the API base URL (pre-filled with the cloud default; edit for self-hosted instances), and provide your credentials
+2. **Select workspaces / organizations / groups** — the tool discovers and lists what the token has access to; tick the ones to scan
+3. **Review repositories & download** — toggle individual repos on or off, then download the CSV
+
+The credential form adapts to the selected provider: the username field only appears for Bitbucket, labels and help text update to match each provider's terminology, and the base URL field is pre-filled with the cloud default so you only need to change it for self-hosted instances.
 
 ---
 
@@ -178,9 +230,18 @@ The output CSV contains one row per repository with the following columns:
 | Subfolder | _(empty — fill in manually if needed)_ |
 | App Name | Repository name |
 | Business Criticality | Configured default |
-| Business App | Bitbucket project name |
+| Business App | Project / group / org name (see below) |
 | Business App Technical Owner | Configured default |
 | Business App Business Owner | Configured default |
 | Cost | Configured default |
-| Program | Configured default |
-| Investment Status | Configured default |
+| _(custom columns)_ | Configured defaults — any columns added via `EXTRA_COLUMNS` or the web UI |
+
+#### Business App — per-provider mapping
+
+| Provider | Business App source |
+|---|---|
+| Bitbucket | Bitbucket Project name |
+| GitHub | Organization name (repos are flat within an org) |
+| GitLab | Immediate namespace (group or subgroup) name |
+| Azure DevOps | Azure DevOps Project name |
+| Gitea / Forgejo | Organization name (repos are flat within an org) |
