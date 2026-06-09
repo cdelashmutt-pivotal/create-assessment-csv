@@ -95,9 +95,18 @@
               onchange="onRepoCbChange('{{ ws_slug }}', '{{ proj_data.key }}')"
             />
             <span style="flex:1; font-size:13px;">{{ repo.repo_name }}</span>
-            {% if repo.branch %}
-            <code class="badge badge-blue" style="font-size:11px;">{{ repo.branch }}</code>
-            {% endif %}
+            <select
+              class="branch-select"
+              data-index="{{ repo.index }}"
+              data-default="{{ repo.branch }}"
+              data-workspace="{{ ws_slug }}"
+              data-slug="{{ repo.slug }}"
+              data-project="{{ repo.project_name }}"
+              style="font-size:11px; padding:2px 6px; border:1px solid #9bbfd4;
+                     border-radius:3px; background:#e8f4ff; color:#0072a3;
+                     cursor:pointer; max-width:160px;">
+              <option value="{{ repo.branch }}">{{ repo.branch }}</option>
+            </select>
           </div>
           {% endfor %}
         </div>
@@ -195,6 +204,60 @@
     });
     updateCounter();
   }
+
+  // ------------------------------------------------------------------
+  // Branch lazy-loading
+  // ------------------------------------------------------------------
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.branch-select').forEach(function (sel) {
+      sel.addEventListener('focus', function () {
+        if (sel.dataset.loaded) return;
+        sel.dataset.loaded = 'true';
+        var ws      = encodeURIComponent(sel.dataset.workspace);
+        var slug    = encodeURIComponent(sel.dataset.slug);
+        var proj    = encodeURIComponent(sel.dataset.project || '');
+        var current = sel.dataset.default;
+        fetch('/branches?workspace=' + ws + '&slug=' + slug + '&project_name=' + proj)
+          .then(function (r) { return r.json(); })
+          .then(function (branchList) {
+            if (!branchList || !branchList.length) return;
+            var prev = sel.value;
+            sel.innerHTML = '';
+            branchList.forEach(function (b) {
+              var opt = document.createElement('option');
+              opt.value = b;
+              opt.textContent = b;
+              if (b === prev) opt.selected = true;
+              sel.appendChild(opt);
+            });
+            // If the previously-selected branch wasn't in the list, keep it
+            if (!sel.value) {
+              var fallback = document.createElement('option');
+              fallback.value = prev;
+              fallback.textContent = prev;
+              fallback.selected = true;
+              sel.insertBefore(fallback, sel.firstChild);
+            }
+          })
+          .catch(function () { /* leave current default in place on error */ });
+      });
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Sync branch selections into repo_data before download
+  // ------------------------------------------------------------------
+  document.querySelector('form[action="/download"]').addEventListener('submit', function () {
+    var field    = document.querySelector('[name=repo_data]');
+    var repoData = JSON.parse(field.value);
+    document.querySelectorAll('.branch-select').forEach(function (sel) {
+      var idx = parseInt(sel.dataset.index, 10);
+      if (!isNaN(idx) && repoData[idx]) {
+        repoData[idx].branch = sel.value;
+      }
+    });
+    field.value = JSON.stringify(repoData);
+  });
 
   // ------------------------------------------------------------------
   // <details> arrow rotation

@@ -95,6 +95,12 @@ def default_branch(repo: dict) -> str:
     return mb["name"] if mb and mb.get("name") else ""
 
 
+def list_branches(workspace: str, slug: str, auth: dict, **_) -> list[str]:
+    """Return all branch names for a Bitbucket repository."""
+    url = f"{_base(auth)}/repositories/{workspace}/{slug}/refs/branches"
+    return [b["name"] for b in paginate(url, auth, {"pagelen": 100})]
+
+
 def fetch_repos_for_workspaces(workspace_slugs: list[str], auth: dict) -> list[dict]:
     """
     Fetch all repos across the given workspaces.

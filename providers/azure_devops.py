@@ -149,6 +149,17 @@ def get_repos(workspace: str, auth: dict) -> list[dict]:
     return repos
 
 
+def list_branches(workspace: str, slug: str, auth: dict, project_name: str = "", **_) -> list[str]:
+    """Return all branch names for an Azure DevOps repository."""
+    base = auth["base_url"].rstrip("/")
+    if _is_cloud(auth):
+        url = f"{base}/{workspace}/{project_name}/_apis/git/repositories/{slug}/refs"
+    else:
+        url = f"{base}/{project_name}/_apis/git/repositories/{slug}/refs"
+    items = list(_paginate(url, auth, {"filter": "heads/"}))
+    return [_strip_refs_heads(item["name"]) for item in items]
+
+
 def fetch_repos_for_workspaces(workspace_slugs: list[str], auth: dict) -> list[dict]:
     """Fetch all repos across the given Azure DevOps organizations."""
     repos = []

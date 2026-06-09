@@ -109,6 +109,12 @@ def _normalize(repos: list[dict], workspace: str) -> list[dict]:
     ]
 
 
+def list_branches(workspace: str, slug: str, auth: dict, **_) -> list[str]:
+    """Return all branch names for a Gitea repository."""
+    api = _api(auth)
+    return [b["name"] for b in _paginate(f"{api}/repos/{workspace}/{slug}/branches", auth)]
+
+
 def fetch_repos_for_workspaces(workspace_slugs: list[str], auth: dict) -> list[dict]:
     """Fetch all repos across the given Gitea workspaces (organizations / personal account)."""
     api = _api(auth)

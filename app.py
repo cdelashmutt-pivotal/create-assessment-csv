@@ -24,7 +24,7 @@ import os
 import secrets
 
 import requests
-from flask import (Flask, Response, flash, redirect, render_template,
+from flask import (Flask, Response, flash, jsonify, redirect, render_template,
                    request, session, url_for)
 
 from providers import CSV_HEADER_FIXED, PROVIDER_BASE_URLS, WORKSPACE_LABELS, get_provider
@@ -228,6 +228,22 @@ def download():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=assessment_input.csv"},
     )
+
+
+@app.route("/branches", methods=["GET"])
+def branches():
+    workspace    = request.args.get("workspace", "").strip()
+    slug         = request.args.get("slug", "").strip()
+    project_name = request.args.get("project_name", "").strip()
+    if not workspace or not slug:
+        return jsonify([])
+    try:
+        mod = get_provider(session.get("provider", "bitbucket"))
+        branch_list = mod.list_branches(workspace, slug, _auth(),
+                                        project_name=project_name)
+        return jsonify(branch_list)
+    except Exception:
+        return jsonify([])
 
 
 # ---------------------------------------------------------------------------

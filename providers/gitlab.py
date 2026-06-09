@@ -9,6 +9,7 @@ For self-managed GitLab, set base_url to your instance URL:
 """
 
 import re
+from urllib.parse import quote
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -108,6 +109,13 @@ def _normalize(projects: list[dict]) -> list[dict]:
         }
         for p in projects
     ]
+
+
+def list_branches(workspace: str, slug: str, auth: dict, **_) -> list[str]:
+    """Return all branch names for a GitLab repository."""
+    project_path = quote(f"{workspace}/{slug}", safe="")
+    url = f"{_api(auth)}/projects/{project_path}/repository/branches"
+    return [b["name"] for b in _paginate(url, auth, {"per_page": 100})]
 
 
 def fetch_repos_for_workspaces(workspace_slugs: list[str], auth: dict) -> list[dict]:
