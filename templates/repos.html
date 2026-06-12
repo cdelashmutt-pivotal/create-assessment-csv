@@ -3,6 +3,12 @@
 
 {% block content %}
 
+<style>
+  .ws-card[data-all-hidden="1"],
+  .proj-details[data-all-hidden="1"],
+  .repo-row[data-hidden="1"] { display: none !important; }
+</style>
+
 <div class="step-indicator">
   <span class="step">1 &middot; Connect</span>
   <span class="step-sep">›</span>
@@ -18,7 +24,7 @@
     <div class="d-flex align-center justify-between flex-wrap gap-8">
       <span style="font-size:14px;">
         <strong id="selCount">{{ total }}</strong>
-        <span class="text-muted">/ {{ total }} repositories selected</span>
+        <span class="text-muted" id="counterSuffix">/ {{ total }} repositories selected</span>
       </span>
       <div class="d-flex gap-8 flex-wrap">
         <button type="button" class="btn btn-outline btn-sm" onclick="toggleAll(true)">Select All</button>
@@ -28,11 +34,25 @@
         </button>
       </div>
     </div>
+    <!-- Filter row -->
+    <div style="display:flex; align-items:center; gap:8px; padding-top:8px;
+                border-top:1px solid #e8ecef; margin-top:8px; flex-wrap:wrap;">
+      <div style="position:relative; flex:1; min-width:180px;">
+        <span style="position:absolute; left:8px; top:50%; transform:translateY(-50%);
+                     font-size:12px; color:#49595e; pointer-events:none;">&#128269;</span>
+        <input type="text" id="repoFilterInput" placeholder="Filter repositories…"
+               autocomplete="off" style="width:100%; padding-left:28px;" />
+      </div>
+      <div id="repoFilterActions" style="display:none; gap:8px;" class="d-flex">
+        <button type="button" class="btn btn-outline btn-sm" id="btnSelectVisibleRepos">Select Filtered</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btnDeselectVisibleRepos">Deselect Filtered</button>
+      </div>
+    </div>
   </div>
 
   <!-- Workspace → Project → Repo tree -->
   {% for ws_slug, projects in tree.items() %}
-  <div class="card" style="padding:0; overflow:hidden; margin-bottom:16px;">
+  <div class="card ws-card" style="padding:0; overflow:hidden; margin-bottom:16px;">
 
     <!-- Workspace header -->
     <div style="background:#e8ecef; padding:12px 20px; display:flex; align-items:center;
@@ -60,7 +80,7 @@
     <div style="padding:0 20px 12px;">
       {% for proj_name, proj_data in projects.items() %}
 
-      <details open style="margin-top:12px; border-bottom:1px solid #f0f3f5; padding-bottom:8px;">
+      <details open class="proj-details" style="margin-top:12px; border-bottom:1px solid #f0f3f5; padding-bottom:8px;">
         <summary style="display:flex; align-items:center; gap:10px; padding:6px 0;
                         cursor:pointer; user-select:none; list-style:none;">
           <span class="summary-arrow" style="font-size:10px; color:#49595e; transition:transform 0.2s;">&#9658;</span>
@@ -81,7 +101,8 @@
         <!-- Repos -->
         <div style="padding-left:40px;">
           {% for repo in proj_data.repos %}
-          <div style="display:flex; align-items:center; gap:10px; padding:5px 0;
+          <div class="repo-row" data-search="{{ repo.repo_name | lower }}"
+               style="display:flex; align-items:center; gap:10px; padding:5px 0;
                       border-bottom:1px solid #f5f7f8;">
             <input
               type="checkbox"
@@ -118,6 +139,10 @@
   </div>
   {% endfor %}
 
+  <p id="reposNoResults" style="display:none; padding:40px; text-align:center; color:#49595e; font-size:14px;">
+    No repositories match your filter.
+  </p>
+
   <!-- Bottom action bar -->
   <div class="d-flex gap-8" style="justify-content:space-between; margin-top:8px; margin-bottom:40px;">
     <a href="/" class="btn btn-outline">&larr; Start Over</a>
@@ -137,13 +162,22 @@
   // Counter
   // ------------------------------------------------------------------
   function updateCounter() {
-    var total  = document.querySelectorAll('.repo-cb').length;
+    var total   = document.querySelectorAll('.repo-cb').length;
     var checked = document.querySelectorAll('.repo-cb:checked').length;
     document.getElementById('selCount').textContent    = checked;
     document.getElementById('selCountBtn').textContent = checked;
     document.querySelectorAll('.sel-count-bottom').forEach(function (el) {
       el.textContent = checked;
     });
+
+    var q = document.getElementById('repoFilterInput').value.trim();
+    var suffix = document.getElementById('counterSuffix');
+    if (q) {
+      var visible = document.querySelectorAll('.repo-row:not([data-hidden="1"]) .repo-cb').length;
+      suffix.innerHTML = 'selected &nbsp;<span style="color:#0072a3; font-weight:600;">/ ' + visible + ' matching</span> / ' + total + ' total';
+    } else {
+      suffix.textContent = '/ ' + total + ' repositories selected';
+    }
   }
 
   // ------------------------------------------------------------------
@@ -166,6 +200,12 @@
       wsCb.indeterminate = chkWs.length > 0 && chkWs.length < allWs.length;
       wsCb.checked       = chkWs.length === allWs.length;
     }
+  }
+
+  function syncAllParents() {
+    document.querySelectorAll('.proj-toggle').forEach(function (pt) {
+      syncParents(pt.dataset.ws, pt.dataset.proj);
+    });
   }
 
   // ------------------------------------------------------------------
@@ -204,6 +244,64 @@
     });
     updateCounter();
   }
+
+  // ------------------------------------------------------------------
+  // Filter
+  // ------------------------------------------------------------------
+  function applyRepoFilter() {
+    var q = document.getElementById('repoFilterInput').value.trim().toLowerCase();
+    var filterActions = document.getElementById('repoFilterActions');
+    var noResults = document.getElementById('reposNoResults');
+
+    document.querySelectorAll('.repo-row').forEach(function (row) {
+      var match = !q || row.dataset.search.indexOf(q) !== -1;
+      row.dataset.hidden = match ? '0' : '1';
+    });
+
+    document.querySelectorAll('.proj-details').forEach(function (det) {
+      var rows = det.querySelectorAll('.repo-row');
+      var anyVisible = false;
+      rows.forEach(function (r) { if (r.dataset.hidden !== '1') anyVisible = true; });
+      det.dataset.allHidden = anyVisible ? '0' : '1';
+    });
+
+    var anyWsVisible = false;
+    document.querySelectorAll('.ws-card').forEach(function (card) {
+      var dets = card.querySelectorAll('.proj-details');
+      var anyVisible = false;
+      dets.forEach(function (d) { if (d.dataset.allHidden !== '1') anyVisible = true; });
+      card.dataset.allHidden = anyVisible ? '0' : '1';
+      if (anyVisible) anyWsVisible = true;
+    });
+
+    if (q) {
+      filterActions.style.display = 'flex';
+      noResults.style.display = anyWsVisible ? 'none' : 'block';
+    } else {
+      filterActions.style.display = 'none';
+      noResults.style.display = 'none';
+    }
+
+    updateCounter();
+  }
+
+  document.getElementById('btnSelectVisibleRepos').addEventListener('click', function () {
+    document.querySelectorAll('.repo-row:not([data-hidden="1"]) .repo-cb').forEach(function (cb) {
+      cb.checked = true;
+    });
+    syncAllParents();
+    updateCounter();
+  });
+
+  document.getElementById('btnDeselectVisibleRepos').addEventListener('click', function () {
+    document.querySelectorAll('.repo-row:not([data-hidden="1"]) .repo-cb').forEach(function (cb) {
+      cb.checked = false;
+    });
+    syncAllParents();
+    updateCounter();
+  });
+
+  document.getElementById('repoFilterInput').addEventListener('input', applyRepoFilter);
 
   // ------------------------------------------------------------------
   // Branch lazy-loading
