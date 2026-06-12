@@ -104,7 +104,7 @@ All flags:
 | Flag | Description |
 |---|---|
 | `--provider` | `bitbucket` (default), `github`, `gitlab`, `azuredevops`, `gitea` |
-| `--base-url` | Override the API base URL (required for Gitea; optional for self-hosted instances of other providers) |
+| `--base-url` | Self-hosted or enterprise instance URL (e.g. `https://github.example.com`). Omit for public cloud providers. Required for Gitea/Forgejo. |
 | `--token` | API / Personal Access Token (prompted interactively if omitted) |
 | `--username` | Username — Bitbucket only (prompted interactively if omitted) |
 | `--workspaces` | Comma-separated workspace / org / group slugs to export (auto-discovers all if omitted) |

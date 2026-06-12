@@ -100,7 +100,8 @@ def parse_args():
                    choices=["bitbucket", "github", "gitlab", "azuredevops", "gitea"],
                    help="Git provider (default: bitbucket)")
     p.add_argument("--base-url", default="",
-                   help="API base URL (overrides provider default; required for Gitea)")
+                   help="Self-hosted or enterprise instance URL (e.g. https://github.example.com). "
+                        "Omit to use the provider's public cloud API. Required for Gitea/Forgejo.")
     p.add_argument("--username", default="",
                    help="Username (required for Bitbucket)")
     p.add_argument("--token", default="",
